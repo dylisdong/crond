@@ -84,7 +84,7 @@ func (n *Node) tickerTTL() {
 		if n.crond.isRunning {
 			err := n.ttl()
 			if err != nil {
-				log.Printf("error: update node pool failed: %+v", err)
+				log.Printf("error: update node pool failed: [%+v]", err)
 			}
 		} else {
 			return

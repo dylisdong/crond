@@ -70,15 +70,15 @@ func (r *driverRedis) keepalive(nodeId string) {
 		ctx, cancel := context.WithTimeout(r.ctx, ctxTimeout)
 
 		ok, err := r.driver.Expire(ctx, nodeId, r.expiration).Result()
-		if err != nil {
-			log.Printf("error: node[%s] renewal failed: %+v", nodeId, err)
-		}
-
 		cancel()
+
+		if err != nil {
+			log.Printf("error: node[%s] renewal failed: [%+v]", nodeId, err)
+		}
 
 		if !ok {
 			if err := r.register(nodeId); err != nil {
-				log.Printf("error: node[%s] register failed: %+v", nodeId, err)
+				log.Printf("error: node[%s] register failed: [%+v]", nodeId, err)
 			}
 		}
 	}

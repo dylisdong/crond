@@ -104,15 +104,15 @@ func (e *driverEtcd) keepalive(nodeId string) {
 			if e.aliveCh == nil {
 				err := e.register(nodeId)
 				if err != nil {
-					log.Printf("error: node[%s] register failed: %+v", nodeId, err)
+					log.Printf("error: node[%s] register failed: [%+v]", nodeId, err)
 				}
 			}
 
-		case res := <-e.aliveCh:
-			if res == nil {
+		case _, ok := <-e.aliveCh:
+			if !ok {
 				err := e.register(nodeId)
 				if err != nil {
-					log.Printf("error: node[%s] register failed: %+v", nodeId, err)
+					log.Printf("error: node[%s] register failed: [%+v]", nodeId, err)
 				}
 			}
 		}

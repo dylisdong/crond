@@ -72,7 +72,7 @@ func (c *Crond) addJob(jobName, jobType, spec string, cmd func(), job cron.Job) 
 func (c *Crond) thisNodeRun(jobName string) bool {
 	runNodeId, err := c.node.pickNode(jobName)
 	if err != nil {
-		log.Printf("error: pick node failed: %+v", err)
+		log.Printf("error: pick node failed: [%+v]", err)
 		return false
 	}
 
@@ -88,11 +88,11 @@ func (c *Crond) Start() {
 	err := c.node.StartWatch()
 	if err != nil {
 		c.isRunning = false
-		log.Printf("error: crond start watch failed: %+v", err)
+		log.Printf("error: crond start watch failed: [%+v]", err)
 		return
 	}
 
-	log.Printf("info: crond started, nodeId is %s", c.node.nodeId)
+	log.Printf("info: crond started, nodeId[%s]", c.node.nodeId)
 
 	c.cron.Start()
 }
@@ -104,11 +104,11 @@ func (c *Crond) Run() {
 	err := c.node.StartWatch()
 	if err != nil {
 		c.isRunning = false
-		log.Printf("error: crond start watch failed: %+v", err)
+		log.Printf("error: crond start watch failed: [%+v]", err)
 		return
 	}
 
-	log.Printf("info: crond running, nodeId is %s", c.node.nodeId)
+	log.Printf("info: crond running, nodeId[%s]", c.node.nodeId)
 
 	c.cron.Run()
 }
