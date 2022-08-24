@@ -47,7 +47,7 @@ func (h *ConsistentHash) IsEmpty() bool {
 	return len(h.keys) == 0
 }
 
-func (h *ConsistentHash) Add(keys ...string) {
+func (h *ConsistentHash) Add(keys ...string) *ConsistentHash {
 	for _, key := range keys {
 		for i := 0; i < h.replicas; i++ {
 			hash := h.hashFunc([]byte(key + strconv.Itoa(i)))
@@ -61,6 +61,8 @@ func (h *ConsistentHash) Add(keys ...string) {
 
 	// sort
 	sort.Slice(h.keys, func(i, j int) bool { return h.keys[i] < h.keys[j] })
+
+	return h
 }
 
 // Get the closest item in the hash to the provided key.

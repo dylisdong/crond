@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const ctxTimeout = 2 * time.Second
+
 type driverRedis struct {
 	driver     *redis.Client
 	ctx        context.Context
@@ -21,7 +23,7 @@ func NewDriver(r *redis.Client) driver.Driver {
 
 func (r *driverRedis) Ping() error { return r.driver.Ping(r.ctx).Err() }
 
-func (r *driverRedis) SetExpiration(expiration time.Duration) { r.expiration = expiration }
+func (r *driverRedis) SetKeepaliveInterval(interval time.Duration) { r.expiration = interval }
 
 func (r *driverRedis) Keepalive(nodeId string) { go r.keepalive(nodeId) }
 
@@ -45,36 +47,19 @@ func (r *driverRedis) GetServiceNodeList(serviceName string) ([]string, error) {
 }
 
 func (r *driverRedis) RegisterServiceNode(serviceName string) (string, error) {
-	// crond:{serviceName}:{uuid}
-	nodeId := driver.PrefixKey + driver.JAR + serviceName + driver.JAR + uuid.New().String()
+	//              crond:{serviceName}:{uuid}
+	nodeId := driver.PrefixKey + driver.JAR + serviceName + driver.JAR + uuid.NewString()
 
 	return nodeId, r.register(nodeId)
 }
 
 func (r *driverRedis) register(nodeId string) error {
-	ctx, cancel := context.WithTimeout(r.ctx, 3*time.Second)
+	ctx, cancel := context.WithTimeout(r.ctx, ctxTimeout)
 
-	err := r.driver.SetEX(ctx, nodeId, nodeId, r.expiration).Err()
+	err := r.driver.SetEX(ctx, nodeId, "ok", r.expiration).Err()
 	cancel()
-
-	if err != nil {
-		log.Printf("error: node[%s] register failed: %+v", nodeId, err)
-	}
 
 	return err
-}
-
-func (r *driverRedis) renewal(nodeId string) bool {
-	ctx, cancel := context.WithTimeout(r.ctx, 2*time.Second)
-
-	ok, err := r.driver.Expire(ctx, nodeId, r.expiration).Result()
-	cancel()
-
-	if err != nil {
-		log.Printf("error: node[%s] renewal failed: %+v", nodeId, err)
-	}
-
-	return ok
 }
 
 func (r *driverRedis) keepalive(nodeId string) {
@@ -82,8 +67,19 @@ func (r *driverRedis) keepalive(nodeId string) {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if !r.renewal(nodeId) {
-			_ = r.register(nodeId)
+		ctx, cancel := context.WithTimeout(r.ctx, ctxTimeout)
+
+		ok, err := r.driver.Expire(ctx, nodeId, r.expiration).Result()
+		if err != nil {
+			log.Printf("error: node[%s] renewal failed: %+v", nodeId, err)
+		}
+
+		cancel()
+
+		if !ok {
+			if err := r.register(nodeId); err != nil {
+				log.Printf("error: node[%s] register failed: %+v", nodeId, err)
+			}
 		}
 	}
 }

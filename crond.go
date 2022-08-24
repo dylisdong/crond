@@ -8,22 +8,23 @@ import (
 	"time"
 )
 
-const defaultDuration = time.Second * 1
+const defaultDuration = 2 * time.Second
 
 type Crond struct {
 	jobs           map[string]*JobWrapper
 	serviceName    string
-	updateDuration time.Duration
-	nodePool       *NodePool
+	updateInterval time.Duration
+	node           *Node
 	cron           *cron.Cron
 	opts           []cron.Option
-	isRun          bool
+	isRunning      bool
+	lazyPick       bool
 }
 
 func NewCrond(serviceName string, driver driver.Driver, opts ...Option) *Crond {
 	crond := &Crond{
 		serviceName:    serviceName,
-		updateDuration: defaultDuration,
+		updateInterval: defaultDuration,
 		jobs:           make(map[string]*JobWrapper),
 		opts:           make([]cron.Option, 0),
 	}
@@ -34,7 +35,7 @@ func NewCrond(serviceName string, driver driver.Driver, opts ...Option) *Crond {
 
 	crond.cron = cron.New(crond.opts...)
 
-	crond.nodePool = newNodePool(serviceName, driver, crond, crond.updateDuration)
+	crond.node = newNode(serviceName, driver, crond, crond.updateInterval)
 
 	return crond
 }
@@ -69,53 +70,52 @@ func (c *Crond) addJob(jobName, jobType, spec string, cmd func(), job cron.Job) 
 }
 
 func (c *Crond) thisNodeRun(jobName string) bool {
-	runNode := c.nodePool.PickNodeByJobName(jobName)
-
-	log.Printf("info: job[%s] will running in node[%s]", jobName, runNode)
-
-	if runNode == "" {
-		log.Printf("error: node pool is empty")
+	runNodeId, err := c.node.pickNode(jobName)
+	if err != nil {
+		log.Printf("error: pick node failed: %+v", err)
 		return false
 	}
 
-	return c.nodePool.nodeId == runNode
+	log.Printf("info: node[%s] will run job[%s]", runNodeId, jobName)
+
+	return c.node.nodeId == runNodeId
 }
 
 //Start Crond
 func (c *Crond) Start() {
-	c.isRun = true
+	c.isRunning = true
 
-	err := c.nodePool.StartWatch()
+	err := c.node.StartWatch()
 	if err != nil {
-		c.isRun = false
+		c.isRunning = false
 		log.Printf("error: crond start watch failed: %+v", err)
 		return
 	}
 
-	log.Printf("info: crond started, nodeId is %s", c.nodePool.nodeId)
+	log.Printf("info: crond started, nodeId is %s", c.node.nodeId)
 
 	c.cron.Start()
 }
 
 // Run Crond
 func (c *Crond) Run() {
-	c.isRun = true
+	c.isRunning = true
 
-	err := c.nodePool.StartWatch()
+	err := c.node.StartWatch()
 	if err != nil {
-		c.isRun = false
+		c.isRunning = false
 		log.Printf("error: crond start watch failed: %+v", err)
 		return
 	}
 
-	log.Printf("info: crond running, nodeId is %s", c.nodePool.nodeId)
+	log.Printf("info: crond running, nodeId is %s", c.node.nodeId)
 
 	c.cron.Run()
 }
 
 // Stop Crond
 func (c *Crond) Stop() {
-	c.isRun = false
+	c.isRunning = false
 	c.cron.Stop()
 }
 

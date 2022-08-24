@@ -32,9 +32,16 @@ func WithLogger(logger cron.Logger) Option {
 	return func(c *Crond) { c.opts = append(c.opts, cron.WithLogger(logger)) }
 }
 
-// WithNodeUpdateDuration set node update duration
-func WithNodeUpdateDuration(dur time.Duration) Option {
+// WithNodeUpdateInterval set node update interval
+func WithNodeUpdateInterval(dur time.Duration) Option {
 	return func(c *Crond) {
-		c.updateDuration = dur
+		c.updateInterval = dur
+	}
+}
+
+// WithLazyPick set lazy pick option
+func WithLazyPick(lazy bool) Option {
+	return func(c *Crond) {
+		c.lazyPick = lazy
 	}
 }
