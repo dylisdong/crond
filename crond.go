@@ -85,7 +85,7 @@ func (c *Crond) thisNodeRun(jobName string) bool {
 func (c *Crond) Start() {
 	c.isRunning = true
 
-	err := c.node.StartWatch()
+	err := c.node.Start()
 	if err != nil {
 		c.isRunning = false
 		log.Printf("error: crond start watch failed: [%+v]", err)
@@ -101,7 +101,7 @@ func (c *Crond) Start() {
 func (c *Crond) Run() {
 	c.isRunning = true
 
-	err := c.node.StartWatch()
+	err := c.node.Start()
 	if err != nil {
 		c.isRunning = false
 		log.Printf("error: crond start watch failed: [%+v]", err)
@@ -116,6 +116,7 @@ func (c *Crond) Run() {
 // Stop Crond
 func (c *Crond) Stop() {
 	c.isRunning = false
+	c.node.Stop()
 	c.cron.Stop()
 }
 

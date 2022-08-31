@@ -2,9 +2,14 @@ package crond
 
 import (
 	"fmt"
-	"github.com/dylisdong/crond/driver/etcd"
+	"github.com/dylisdong/crond/driver/mysql"
 	"github.com/go-redis/redis/v8"
 	"go.etcd.io/etcd/client/v3"
+	my "gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"os"
+	"os/signal"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -25,7 +30,7 @@ func TestNewCrond(t *testing.T) {
 }
 
 func node() {
-	d := etcd.NewDriver(clientEtcd())
+	d := mysql.NewDriver(clientMysql(), "")
 
 	crond := NewCrond("test-service", d, WithLazyPick(true))
 
@@ -34,6 +39,17 @@ func node() {
 	})
 
 	crond.Start()
+
+	signalCh := make(chan os.Signal)
+
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM, syscall.SIGKILL)
+
+	select {
+	case sig := <-signalCh:
+		fmt.Println("received stop signal: ", sig)
+		crond.Stop()
+		time.Sleep(10 * time.Second)
+	}
 }
 
 func clientRedis() *redis.Client {
@@ -56,4 +72,13 @@ func clientEtcd() *clientv3.Client {
 		fmt.Println(err)
 	}
 	return c
+}
+
+func clientMysql() *gorm.DB {
+	db, err := gorm.Open(my.Open("root:123456@tcp(127.0.0.1:3306)/tmp?parseTime=True"))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	return db
 }

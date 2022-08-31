@@ -25,4 +25,7 @@ type Driver interface {
 
 	// RegisterServiceNode 向serviceName注册node节点
 	RegisterServiceNode(serviceName string) (nodeId string, err error)
+
+	// UnRegisterServiceNode 取消注册node节点
+	UnRegisterServiceNode()
 }

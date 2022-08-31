@@ -36,7 +36,7 @@ func newNode(serviceName string, driver driver.Driver, crond *Crond, updateInter
 	}
 }
 
-func (n *Node) StartWatch() error {
+func (n *Node) Start() error {
 	n.driver.SetKeepaliveInterval(n.updateInterval)
 
 	nodeId, err := n.driver.RegisterServiceNode(n.serviceName)
@@ -62,6 +62,12 @@ func (n *Node) StartWatch() error {
 	return nil
 }
 
+func (n *Node) Stop() {
+	n.mu.Lock()
+	n.driver.UnRegisterServiceNode()
+	n.mu.Unlock()
+}
+
 func (n *Node) ttl() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -84,7 +90,7 @@ func (n *Node) tickerTTL() {
 		if n.crond.isRunning {
 			err := n.ttl()
 			if err != nil {
-				log.Printf("error: update node pool failed: [%+v]", err)
+				log.Printf("error: update node failed: [%+v]", err)
 			}
 		} else {
 			return

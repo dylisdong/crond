@@ -2,6 +2,7 @@ package etcd
 
 import (
 	"context"
+	"errors"
 	"github.com/dylisdong/crond/driver"
 	"github.com/google/uuid"
 	"go.etcd.io/etcd/client/v3"
@@ -19,12 +20,14 @@ type driverEtcd struct {
 	ctx    context.Context
 	ttl    int64
 
+	cancelCh chan struct{}
+
 	aliveCh <-chan *clientv3.LeaseKeepAliveResponse
 	leaseId clientv3.LeaseID
 }
 
 func NewDriver(driver *clientv3.Client) driver.Driver {
-	return &driverEtcd{driver: driver, ctx: context.Background()}
+	return &driverEtcd{driver: driver, ctx: context.Background(), cancelCh: make(chan struct{})}
 }
 
 func (e *driverEtcd) Ping() error { return nil }
@@ -45,22 +48,19 @@ func (e *driverEtcd) GetServiceNodeList(serviceName string) (nodeIds []string, e
 	ctx, cancel := context.WithTimeout(e.ctx, ctxTimeout)
 	defer cancel()
 
-	var (
-		list []string
-		//  /crond/{serviceName}/
-		prefix = driver.SPL + driver.PrefixKey + driver.SPL + serviceName + driver.SPL
-	)
+	//  /crond/{serviceName}/
+	var prefix = driver.SPL + driver.PrefixKey + driver.SPL + serviceName + driver.SPL
 
 	gets, err := e.driver.Get(ctx, prefix, clientv3.WithPrefix())
 	if err != nil {
-		return list, err
+		return
 	}
 
 	for _, kv := range gets.Kvs {
-		list = append(list, string(kv.Key))
+		nodeIds = append(nodeIds, string(kv.Key))
 	}
 
-	return list, nil
+	return
 }
 
 func (e *driverEtcd) RegisterServiceNode(serviceName string) (nodeId string, err error) {
@@ -69,6 +69,8 @@ func (e *driverEtcd) RegisterServiceNode(serviceName string) (nodeId string, err
 
 	return nodeId, e.register(nodeId)
 }
+
+func (e *driverEtcd) UnRegisterServiceNode() { e.cancelCh <- struct{}{} }
 
 func (e *driverEtcd) register(nodeId string) error {
 	ctx, cancel := context.WithTimeout(e.ctx, ctxTimeout)
@@ -94,12 +96,28 @@ func (e *driverEtcd) register(nodeId string) error {
 	return nil
 }
 
+func (e *driverEtcd) unregister(nodeId string) (err error) {
+	_, er1 := e.driver.Delete(e.ctx, nodeId)
+
+	_, er2 := e.driver.Revoke(e.ctx, e.leaseId)
+
+	return CombineError(er1, er2)
+}
+
 func (e *driverEtcd) keepalive(nodeId string) {
 	ticker := time.NewTicker(time.Duration(e.ttl) * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
+
+		case <-e.cancelCh:
+			err := e.unregister(nodeId)
+			if err != nil {
+				log.Printf("error: node[%s] unregister failed: [%+v]", nodeId, err)
+			}
+			return
+
 		case <-ticker.C:
 			if e.aliveCh == nil {
 				err := e.register(nodeId)
@@ -117,4 +135,21 @@ func (e *driverEtcd) keepalive(nodeId string) {
 			}
 		}
 	}
+}
+
+func CombineError(errs ...error) error {
+	var errStr string
+	for _, err := range errs {
+		if err != nil {
+			if errStr == "" {
+				errStr += err.Error()
+			} else {
+				errStr += "; " + err.Error()
+			}
+		}
+	}
+	if errStr == "" {
+		return nil
+	}
+	return errors.New(errStr)
 }
