@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-const minReplicas = 100
+const minReplicas = 3
 
 type (
 	// Func defines the hash method.

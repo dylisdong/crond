@@ -48,7 +48,6 @@ func node() {
 	case sig := <-signalCh:
 		fmt.Println("received stop signal: ", sig)
 		crond.Stop()
-		time.Sleep(10 * time.Second)
 	}
 }
 
